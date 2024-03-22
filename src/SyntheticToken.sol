@@ -71,4 +71,26 @@ contract SyntheticToken is ERC20, ERC20Permit, ERC20Burnable, AccessControl {
     ) external onlyWhitelistedVaults {
         burnFrom(_from, _amount);
     }
+
+    /**
+    @dev Add a vault to the whitelist
+    @param _vault The address of the vault
+    */
+    function addVault(address _vault) external onlyRole(ADMIN_ROLE) {
+        vaults.push(_vault);
+    }
+
+    /**
+    @dev Remove a vault from the whitelist
+    @param _vault The address of the vault
+    */
+    function removeVault(address _vault) external onlyRole(ADMIN_ROLE) {
+        for (uint256 i = 0; i < vaults.length; i++) {
+            if (vaults[i] == _vault) {
+                vaults[i] = vaults[vaults.length - 1];
+                vaults.pop();
+                break;
+            }
+        }
+    }
 }
