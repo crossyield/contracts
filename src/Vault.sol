@@ -53,7 +53,7 @@ contract Vault is ERC4626, ReentrancyGuard {
     @param assets The amount of assets deposited
     @param points The amount of points minted
      */
-    event Deposited(address indexed user, uint assets, uint points);
+    event Deposited(address indexed user, uint depositAmount, uint points);
 
     /**
     @dev Emitted when a user borrows synthetic assets
@@ -126,27 +126,73 @@ contract Vault is ERC4626, ReentrancyGuard {
     */
     error InsufficientSyntheticAssets(uint _amount, uint _balance);
 
+    /**
+    @dev Error when an incorrect underlying asset is used
+    @param _asset The address of the asset
+    */
+    error IncorrectAsset(address _asset);
+
     //=============================================================================
     //CONSTRUCTOR
     //=============================================================================
     /**
     @dev Initializes the vault with the underlying asset, name, symbol, and synthetic assets.
-    @param _asset Either WETH or USDC address based on the WETH/USDC pool in Dyson Finance
+    @param _asset Either DYSN or USDC address based on the DYSN/USDC pool in Dyson Finance
     @param _maxVaultCapacity The maximum capacity of the vault, to control price impact and prevent an imbalance in the pool
     @param _name The name of the points that represent the user's share of the vault
     @param _symbol The symbol of the points that represent the user's share of the vault
     @param _syntheticAsset The address of the synthetic asset that can be borrowed against the vault
      */
     constructor(
-        ERC20 _asset,
+        ERC20[] _asset, // DYSN and USDC
         uint256 _maxVaultCapacity,
         string memory _name,
         string memory _symbol,
-        ISyntheticToken _syntheticAsset,
+        ISyntheticToken _syntheticAsset, //cyUSD
         address _treasury
     ) ERC4626(_asset, _name, _symbol) {
         SYNTHETIC_ASSET_ADDRESS = _syntheticAsset;
         MAX_VAULT_CAPACITY = _maxVaultCapacity;
         TREASURY_ADDRESS = _treasury;
+    }
+
+    /**
+     * @dev Deposits the underlying asset into the Dyson Finance vault. Either DYSN, or USDC.
+     * @param _assets The amount of assets to deposit.
+     * @return mintedPoints The amount of points minted.
+     */
+    function _deposit(
+        address _asset,
+        uint _depositAmount
+    ) public nonReentrant returns (uint mintedPoints) {
+        //checks
+        if (!(_depositAmount > 0)) {
+            revert DepositLessThanZero(_depositAmount);
+        }
+
+        if (_asset != address(assets[0]) && _asset != address(assets[1])) {
+            revert IncorrectAsset(_asset);
+        }
+
+        if (!(vaultTVL + _depositAmount <= MAX_VAULT_CAPACITY)) {
+            revert DepositLimitReached();
+        }
+
+        //effects
+        vaultUsers[msg.sender].collateral += _depositAmount;
+        vaultUsers[msg.sender].credit =
+            (vaultUsers[msg.sender].collateral * MAX_LTV) /
+            100;
+        vaultTVL += _depositAmount;
+
+        //interactions
+        uint256 receivedPoints = deposit(_assets, msg.sender);
+        vaultUsers[msg.sender].points += receivedPoints;
+        vaultPoints += receivedPoints;
+        users.push(msg.sender);
+
+        emit Deposited(msg.sender, _depositAmount, receivedPoints);
+
+        return receivedPoints;
     }
 }
