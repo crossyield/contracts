@@ -23,4 +23,18 @@ contract Treasury is Ownable {
 
     /// @dev Event for Ethers withdrawn.
     event Withdrawn(address indexed beneficiary, uint amount);
+
+    //========================================================================
+    //CONSTRUCTOR
+    //========================================================================
+    /// @notice Constructor to set the initial owner and optionally receive Ether.
+    constructor() payable Ownable(msg.sender) {}
+
+    //========================================================================
+    //RECEIVE ETHER
+    //========================================================================
+    /// @notice Receive Ether.
+    receive() external payable {
+        emit Received(msg.sender, msg.value);
+    }
 }
