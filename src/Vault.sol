@@ -125,4 +125,28 @@ contract Vault is ERC4626, ReentrancyGuard {
     @param _balance The amount of synthetic assets the user has
     */
     error InsufficientSyntheticAssets(uint _amount, uint _balance);
+
+    //=============================================================================
+    //CONSTRUCTOR
+    //=============================================================================
+    /**
+    @dev Initializes the vault with the underlying asset, name, symbol, and synthetic assets.
+    @param _asset Either WETH or USDC address based on the WETH/USDC pool in Dyson Finance
+    @param _maxVaultCapacity The maximum capacity of the vault, to control price impact and prevent an imbalance in the pool
+    @param _name The name of the points that represent the user's share of the vault
+    @param _symbol The symbol of the points that represent the user's share of the vault
+    @param _syntheticAsset The address of the synthetic asset that can be borrowed against the vault
+     */
+    constructor(
+        ERC20 _asset,
+        uint256 _maxVaultCapacity,
+        string memory _name,
+        string memory _symbol,
+        ISyntheticToken _syntheticAsset,
+        address _treasury
+    ) ERC4626(_asset, _name, _symbol) {
+        SYNTHETIC_ASSET_ADDRESS = _syntheticAsset;
+        MAX_VAULT_CAPACITY = _maxVaultCapacity;
+        TREASURY_ADDRESS = _treasury;
+    }
 }
