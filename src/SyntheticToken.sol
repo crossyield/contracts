@@ -47,4 +47,28 @@ contract SyntheticToken is ERC20, ERC20Permit, ERC20Burnable, AccessControl {
     ) ERC20(_name, _symbol) ERC20Permit(_permit) {
         _grantRole(ADMIN_ROLE, msg.sender);
     }
+
+    //==============================================================================
+    //PUBLIC FUNCTIONS
+    //==============================================================================
+    /**
+    @notice This function is used to mint tokens to a user
+    @param _to The address of the user to mint tokens to
+    @param _amount The amount of tokens to mint
+    */
+    function mint(address _to, uint256 _amount) public onlyWhitelistedVaults {
+        _mint(_to, _amount);
+    }
+
+    /**
+    @dev Burn tokens
+    @param _from The address of the owner
+    @param _amount The amount of tokens to burn
+     */
+    function burn(
+        address _from,
+        uint256 _amount
+    ) external onlyWhitelistedVaults {
+        burnFrom(_from, _amount);
+    }
 }
