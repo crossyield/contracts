@@ -40,11 +40,7 @@ contract SyntheticToken is ERC20, ERC20Permit, ERC20Burnable, AccessControl {
     //==============================================================================
     //CONSTRUCTOR
     //==============================================================================
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        string memory _permit
-    ) ERC20(_name, _symbol) ERC20Permit(_permit) {
+    constructor() ERC20("cyDYSON", "CYDYSON") ERC20Permit("CrossYield") {
         _grantRole(ADMIN_ROLE, msg.sender);
     }
 
