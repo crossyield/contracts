@@ -236,6 +236,32 @@ contract Vault is ERC4626, ReentrancyGuard {
             );
     }
 
+    /**
+     * @dev Borrow function that allows a user to borrow a synthetic asset against the underlying vault asset deposit.
+     * @param _amount The amount of synthetic assets to borrow.
+     * @notice Check that the borrow amount is at a maximum of 50% of the collateral
+     * @notice Check that the user has enough collateral to borrow
+     * @notice Mint the synthetic asset to the user
+     * @notice Borrow amount must be greater than zero
+     * @notice Increase the user's debt, decrease the user's credit
+     * @notice WIP: MAKE SURE THAT THE BORROW AMOUNT IS LESS THAN OR EQUAL TO THE LTV
+     */
+    function borrow(uint256 _amount) external nonReentrant {
+        if (!(_amount > 0)) {
+            revert BorrowLessThanZero(_amount);
+        }
+        if (!(_amount <= vaultUsers[msg.sender].credit)) {
+            revert BorrowExceedsCredit(_amount, vaultUsers[msg.sender].credit);
+        }
+
+        vaultUsers[msg.sender].debt += _amount;
+        vaultUsers[msg.sender].credit -= _amount;
+
+        ICYDyson(DYSON_USDC_POOL).mint(msg.sender, _amount);
+
+        emit Borrowed(msg.sender, _amount);
+    }
+
     //=============================================================================
     //INTERNAL FUNCTIONS
     //=============================================================================
