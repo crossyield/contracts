@@ -62,4 +62,13 @@ contract Treasury is Ownable {
 
         emit Withdrawn(_beneficiary, _amount);
     }
+
+    //========================================================================
+    //VIEW FUNCTIONS
+    //========================================================================
+    /// @notice Get the balance of the contract.
+    /// @return The balance of the contract.
+    function getBalance() external view returns (uint) {
+        return address(this).balance;
+    }
 }
