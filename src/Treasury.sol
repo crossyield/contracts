@@ -37,4 +37,29 @@ contract Treasury is Ownable {
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
+
+    //========================================================================
+    //EXTERNAL FUNCTIONS
+    //========================================================================
+    /// @notice Withdraw Ether from the contract.
+    /// @param _beneficiary The address to receive the Ether.
+    /// @param _amount The amount of Ether to withdraw.
+    function withdraw(
+        address payable _beneficiary,
+        uint _amount
+    ) external onlyOwner {
+        if (address(this).balance < _amount) {
+            revert InsufficientBalance(_amount, address(this).balance);
+        }
+        if (_beneficiary == address(0)) {
+            revert InvalidAddress();
+        }
+
+        (bool success, ) = _beneficiary.call{value: _amount}("");
+        if (!success) {
+            revert TransferFailed();
+        }
+
+        emit Withdrawn(_beneficiary, _amount);
+    }
 }
