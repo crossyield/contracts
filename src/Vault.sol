@@ -6,13 +6,19 @@ pragma solidity 0.8.24;
 //=============================================================================
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../lib/solmate/src/tokens/ERC4626.sol";
-// import "./interfaces/ISyntheticToken.sol";
+import "./interface/ICYDyson.sol";
+import "./interface/IPair.sol";
+import "./interface/IFarm.sol";
+import "./interface/IERC20.sol";
+import "./lib/TransferHelper.sol";
 
 /**
 @title Vault
 @notice This contract is used to store the yield strategies of the protocol
 */
 contract Vault is ERC4626, ReentrancyGuard {
+    using TransferHelper for address;
+
     //=============================================================================
     //STATE VARIABLES
     //=============================================================================
@@ -39,21 +45,66 @@ contract Vault is ERC4626, ReentrancyGuard {
 
     /// @dev Addresses to track synthetic asset and treasury
     address public immutable TREASURY_ADDRESS;
-    ISyntheticToken public immutable SYNTHETIC_ASSET_ADDRESS;
+    ICYDyson public immutable CYDYSON_ADDRESS;
 
     uint public vaultPoints;
     uint public vaultTVL;
+
+    /// @dev Maximum loan-to-value ratio
+    uint public constant MAX_LTV = 50;
+
+    //======================== DYSON/USDC POOL INTEGRATION ========================
+
+    /// @dev Address to store the DYSON/USDC pool on Sepolia
+    address public constant DYSON_USDC_POOL =
+        0xd0f3c7d3d02909014303d13223302eFB80A29Ff3;
+
+    /// @dev Address to store the farm on Sepolia
+    address public constant FARM = 0x09E1c1C6b273d7fB7F56066D191B7A15205aFcBc;
+
+    /// @dev Address to store the DYSON token on Sepolia
+    address public constant DYSON = 0xeDC2B3Bebbb4351a391363578c4248D672Ba7F9B;
+
+    struct Position {
+        uint index;
+        uint spAmount;
+        bool hasDepositedAsset;
+    }
+
+    mapping(address => mapping(address => uint)) public positionsCount;
+    mapping(address => mapping(address => mapping(uint => Position)))
+        public positions;
+
+    uint public lastUpdateTime;
+    uint public spSnapshot; //sp in farm at last update
+    uint public spPending; //sp to be added to pool
+    uint public updatePeriod = 1 minutes;
+    uint public spPool;
+    address public owner;
+    uint public dysonPool;
+    uint public adminFeeRatio;
+    uint private constant MAX_ADMIN_FEE_RATIO = 1e18;
 
     //=============================================================================
     //EVENTS
     //=============================================================================
     /**
     @dev Emitted when a user deposits assets into the vault
+    @param pair The address of the pair
     @param user The address of the user
-    @param assets The amount of assets deposited
-    @param points The amount of points minted
+    @param noteId The ID of the note
+    @param positionId The ID of the position
+    @param spAmount The amount of SP added to the pool
      */
-    event Deposited(address indexed user, uint depositAmount, uint points);
+    event Deposited(
+        address indexed pair,
+        address indexed user,
+        uint noteId,
+        uint positionId,
+        uint spAmount
+    );
+
+    event Deposit();
 
     /**
     @dev Emitted when a user borrows synthetic assets
@@ -75,6 +126,13 @@ contract Vault is ERC4626, ReentrancyGuard {
         uint creditReward,
         uint protocolFee
     );
+
+    /**
+    @dev Emitted when the vault receives DYSON tokens
+    @param ownerAmount The amount of DYSON tokens sent to the owner
+    @param poolAmount The amount of DYSON tokens added to the pool
+    */
+    event DYSONReceived(uint ownerAmount, uint poolAmount);
 
     //=============================================================================
     //ERRORS
@@ -126,12 +184,6 @@ contract Vault is ERC4626, ReentrancyGuard {
     */
     error InsufficientSyntheticAssets(uint _amount, uint _balance);
 
-    /**
-    @dev Error when an incorrect underlying asset is used
-    @param _asset The address of the asset
-    */
-    error IncorrectAsset(address _asset);
-
     //=============================================================================
     //CONSTRUCTOR
     //=============================================================================
@@ -141,58 +193,164 @@ contract Vault is ERC4626, ReentrancyGuard {
     @param _maxVaultCapacity The maximum capacity of the vault, to control price impact and prevent an imbalance in the pool
     @param _name The name of the points that represent the user's share of the vault
     @param _symbol The symbol of the points that represent the user's share of the vault
-    @param _syntheticAsset The address of the synthetic asset that can be borrowed against the vault
+    @param _cyDysonAddress The address of the synthetic asset that can be borrowed against the vault
      */
     constructor(
-        ERC20[] _asset, // DYSN and USDC
+        address _owner,
+        ERC20 _asset, // DYSN or USDC
         uint256 _maxVaultCapacity,
         string memory _name,
         string memory _symbol,
-        ISyntheticToken _syntheticAsset, //cyUSD
+        ICYDyson _cyDysonAddress, //cyDyson
         address _treasury
     ) ERC4626(_asset, _name, _symbol) {
-        SYNTHETIC_ASSET_ADDRESS = _syntheticAsset;
+        CYDYSON_ADDRESS = _cyDysonAddress;
         MAX_VAULT_CAPACITY = _maxVaultCapacity;
         TREASURY_ADDRESS = _treasury;
+        owner = _owner;
+    }
+
+    //=============================================================================
+    //EXTERNAL FUNCTIONS
+    //=============================================================================
+    /// @dev integration from dyson finance
+    function depositToVault(
+        address tokenIn,
+        address tokenOut,
+        uint index,
+        uint input,
+        uint minOutput,
+        uint time
+    ) external nonReentrant returns (uint output) {
+        uint spBefore = _update();
+        tokenIn.safeTransferFrom(msg.sender, address(this), input);
+        return
+            _deposit(
+                tokenIn,
+                tokenOut,
+                index,
+                input,
+                minOutput,
+                time,
+                spBefore
+            );
+    }
+
+    //=============================================================================
+    //INTERNAL FUNCTIONS
+    //=============================================================================
+
+    function _update() internal returns (uint spInFarm) {
+        if (lastUpdateTime + updatePeriod < block.timestamp) {
+            try IFarm(FARM).swap(address(this)) {} catch {}
+            lastUpdateTime = block.timestamp;
+        }
+        spInFarm = IFarm(FARM).balanceOf(address(this));
+        if (spInFarm < spSnapshot) {
+            spPool += spPending;
+            spPending = 0;
+            uint newBalance = IERC20(DYSON).balanceOf(address(this));
+            if (newBalance > dysonPool) {
+                uint dysonAdded = newBalance - dysonPool;
+                uint adminFee = (dysonAdded * adminFeeRatio) /
+                    MAX_ADMIN_FEE_RATIO;
+                uint poolIncome = dysonAdded - adminFee;
+                dysonPool += poolIncome;
+                DYSON.safeTransfer(owner, adminFee);
+                emit DYSONReceived(adminFee, poolIncome);
+            }
+        }
     }
 
     /**
      * @dev Deposits the underlying asset into the Dyson Finance vault. Either DYSN, or USDC.
-     * @param _assets The amount of assets to deposit.
-     * @return mintedPoints The amount of points minted.
+     * @param input The amount of the asset to deposit
      */
     function _deposit(
-        address _asset,
-        uint _depositAmount
-    ) public nonReentrant returns (uint mintedPoints) {
+        address tokenIn,
+        address tokenOut,
+        uint index,
+        uint input,
+        uint minOutput,
+        uint time,
+        uint spBefore
+    ) internal returns (uint output) {
         //checks
-        if (!(_depositAmount > 0)) {
-            revert DepositLessThanZero(_depositAmount);
+        if (!(input > 0)) {
+            revert DepositLessThanZero(input);
         }
 
-        if (_asset != address(assets[0]) && _asset != address(assets[1])) {
-            revert IncorrectAsset(_asset);
-        }
-
-        if (!(vaultTVL + _depositAmount <= MAX_VAULT_CAPACITY)) {
+        if (!(vaultTVL + input <= MAX_VAULT_CAPACITY)) {
             revert DepositLimitReached();
         }
 
         //effects
-        vaultUsers[msg.sender].collateral += _depositAmount;
+        vaultUsers[msg.sender].collateral += input;
         vaultUsers[msg.sender].credit =
             (vaultUsers[msg.sender].collateral * MAX_LTV) /
             100;
-        vaultTVL += _depositAmount;
+        vaultTVL += input;
 
         //interactions
-        uint256 receivedPoints = deposit(_assets, msg.sender);
+        (address token0, ) = sortTokens(tokenIn, tokenOut);
+        uint noteCount = IPair(DYSON_USDC_POOL).noteCount(address(this));
+        if (tokenIn == token0)
+            output = IPair(DYSON_USDC_POOL).deposit0(
+                address(this),
+                input,
+                minOutput,
+                time
+            );
+        else
+            output = IPair(DYSON_USDC_POOL).deposit1(
+                address(this),
+                input,
+                minOutput,
+                time
+            );
+        uint spAfter = IFarm(FARM).balanceOf(address(this)); //get a hardcoded address for the farm
+        uint spAdded = spAfter - spBefore;
+        spPending += spAdded;
+        spSnapshot = spAfter;
+        uint positionId = positionsCount[DYSON_USDC_POOL][msg.sender];
+        Position storage position = positions[DYSON_USDC_POOL][msg.sender][
+            positionId
+        ];
+        position.index = noteCount;
+        position.spAmount = spAdded;
+        position.hasDepositedAsset = true;
+        positionsCount[DYSON_USDC_POOL][msg.sender]++;
+
+        uint256 receivedPoints = deposit(input, msg.sender);
         vaultUsers[msg.sender].points += receivedPoints;
         vaultPoints += receivedPoints;
         users.push(msg.sender);
 
-        emit Deposited(msg.sender, _depositAmount, receivedPoints);
+        emit Deposited(
+            DYSON_USDC_POOL,
+            msg.sender,
+            noteCount,
+            positionId,
+            spAdded
+        );
+    }
 
-        return receivedPoints;
+    //=============================================================================
+    //PURE FUNCTIONS
+    //=============================================================================
+    /// @dev returns sorted token addresses, used to handle return values from pairs sorted in this order
+    function sortTokens(
+        address tokenA,
+        address tokenB
+    ) internal pure returns (address token0, address token1) {
+        require(tokenA != tokenB, "identical addresses");
+        (token0, token1) = tokenA < tokenB
+            ? (tokenA, tokenB)
+            : (tokenB, tokenA);
+        require(token0 != address(0), "zero address");
+    }
+
+    function totalAssets() public view override returns (uint256) {
+        return vaultTVL;
     }
 }
