@@ -25,4 +25,8 @@ contract Vault is ERC4626, ReentrancyGuard {
     }
     mapping(address => VaultUser) public vaultUsers;
     address[] public users;
+
+    uint public constant DEBT_PAYDOWN_RATIO = 5000;
+    uint public constant CREDIT_REWARD_RATIO = 4000;
+    uint public constant PROTOCOL_REWARD_RATIO = 1000;
 }
