@@ -76,9 +76,18 @@ contract Vault is ERC4626, ReentrancyGuard {
         bool hasDepositedAsset;
     }
 
+    struct Note {
+        uint token0Amt;
+        uint token1Amt;
+        uint due;
+    }
+
     mapping(address => mapping(address => uint)) public positionsCount;
     mapping(address => mapping(address => mapping(uint => Position)))
         public positions;
+
+    /// @notice Notes created by user, indexed by note number
+    mapping(address => mapping(uint => Note)) public notes;
 
     uint public lastUpdateTime;
     uint public spSnapshot; //sp in farm at last update
@@ -344,6 +353,14 @@ contract Vault is ERC4626, ReentrancyGuard {
         //     position.index,
         //     address(this)
         // );
+
+        Note storage note = notes[msg.sender][index];
+        token0Amt = note.token0Amt;
+        token1Amt = note.token1Amt;
+        uint due = note.due;
+        note.token0Amt = 0;
+        note.token1Amt = 0;
+        note.due = 0;
 
         (uint reserve0, uint reserve1) = IPair(DYSON_USDC_POOL).getReserves();
         (uint64 _feeRatio0, uint64 _feeRatio1) = IPair(DYSON_USDC_POOL)
