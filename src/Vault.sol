@@ -385,10 +385,13 @@ contract Vault is ERC4626, ReentrancyGuard {
             // emit Withdraw(address(this), true, index, token0Amt);
 
             //provide a fixed return for now
-            USDC.safeTransferFrom(msg.sender, address(this), 100_000_000);
+            token0Amt = 100_000_000;
+            USDC.safeTransferFrom(msg.sender, address(this), token0Amt);
         } else {
             token0Amt = 0;
-            USDC.safeTransferFrom(msg.sender, address(this), 100_000_000);
+
+            token1Amt = 100_000_000;
+            USDC.safeTransferFrom(msg.sender, address(this), token1Amt);
             // uint64 feeRatioAdded = uint64(
             //     (token1Amt * MAX_FEE_RATIO) / reserve1
             // );
