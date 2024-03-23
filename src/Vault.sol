@@ -220,21 +220,41 @@ contract Vault is ERC4626, ReentrancyGuard {
     function depositToVault(
         address tokenIn, //DYSN
         address tokenOut, //USDC
-        uint index, //1
-        uint input,
-        uint minOutput, //fetch this from another dyson contract
-        uint time // 1 days
+        uint input
     ) external nonReentrant returns (uint output) {
         uint spBefore = _update();
         tokenIn.safeTransferFrom(msg.sender, address(this), input);
+
+        //find out if tokenIn is DYSN or USDC
+        address tokenIsDyson = tokenIn == DYSON ? DYSON : USDC;
+
+        uint minOutput;
+
+        //get the min output from the Router contract
+        if (tokenIsDyson) {
+            (uint reserve0, uint reserve1) = IPair(DYSON_USDC_POOL)
+                .getReserves();
+            (uint64 _feeRatio0, ) = IPair(DYSON_USDC_POOL).getFeeRatio();
+            uint fee = (uint(_feeRatio0) * input) / MAX_FEE_RATIO;
+            uint inputLessFee = input - fee;
+            minOutput = (inputLessFee * reserve1) / (reserve0 + inputLessFee);
+        } else {
+            (uint reserve0, uint reserve1) = IPair(DYSON_USDC_POOL)
+                .getReserves();
+            (, uint64 _feeRatio1) = IPair(DYSON_USDC_POOL).getFeeRatio();
+            uint fee = (uint(_feeRatio1) * input) / MAX_FEE_RATIO;
+            uint inputLessFee = input - fee;
+            minOutput = (inputLessFee * reserve0) / (reserve1 + inputLessFee);
+        }
+
         return
             _deposit(
                 tokenIn,
                 tokenOut,
-                index,
+                1,
                 input,
                 minOutput,
-                time,
+                1 days,
                 spBefore
             );
     }
