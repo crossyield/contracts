@@ -280,7 +280,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         vaultUsers[msg.sender].debt += _amount;
         vaultUsers[msg.sender].credit -= _amount;
 
-        ICYDyson(DYSON_USDC_POOL).mint(msg.sender, _amount);
+        ICYDyson(CYDYSON_ADDRESS).mint(msg.sender, _amount);
 
         emit Borrowed(msg.sender, _amount);
     }
