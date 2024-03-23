@@ -308,7 +308,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         uint index, // 1
         address to // address of this contract
     ) public returns (uint token0Amt, uint token1Amt) {
-        Position storage position = positions[DYSON_USDC_POOL][msg.sender][
+        Position storage position = positions[DYSON_USDC_POOL][address(this)][
             index
         ];
 
