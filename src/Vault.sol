@@ -282,12 +282,9 @@ contract Vault is ERC4626, ReentrancyGuard {
 
         IERC20(address(this)).approve(address(this), MAX_VAULT_CAPACITY);
 
-        ICYDyson(CYDYSON_ADDRESS).mint(
-            msg.sender,
-            _amount * 10 ** uint256(ERC20(address(this)).decimals())
-        );
+        ICYDyson(CYDYSON_ADDRESS).mint(msg.sender, _amount * 1e12);
 
-        emit Borrowed(msg.sender, _amount);
+        emit Borrowed(msg.sender, _amount * 1e12);
     }
 
     /**
