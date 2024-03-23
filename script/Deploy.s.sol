@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.21;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {cyDYSON} from "../src/cyDYSON.sol";
+import {CyDyson} from "../src/cyDYSON.sol";
 import {Treasury} from "../src/Treasury.sol";
 import {ICYDyson} from "../src/interface/ICYDyson.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Vault} from "../src/Vault.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Deploy is Script {
     function run() external {
@@ -19,7 +20,7 @@ contract Deploy is Script {
         address DYSON = 0xeDC2B3Bebbb4351a391363578c4248D672Ba7F9B;
 
         /// @dev Address to store the USDC token on Sepolia
-        address USDC = 0xFA0bd2B4d6D629AdF683e4DCA310c562bCD98E4E;
+        address USDC = (address(0xFA0bd2B4d6D629AdF683e4DCA310c562bCD98E4E));
 
         address UNDERLYING_STRATEGY_ASSET = 0xFA0bd2B4d6D629AdF683e4DCA310c562bCD98E4E;
         uint256 MAX_VAULT_CAPACITY = 5000000 * 10 ** 6; //5000000000000000000000000
@@ -38,24 +39,24 @@ contract Deploy is Script {
         vm.startBroadcast(deployer);
 
         // 1. Deploy Treasury contract w/ an optional Salt
-        Treasury treasury = new Treasury{salt: CROSS_YIELD_SALT}();
+        Treasury treasury = new Treasury();
 
         // 2. Deploy SyntheticToken contract
-        ICYDyson icyDyson = new ICYDyson();
+        CyDyson cyDyson = new CyDyson();
 
         // 3. Create a new USDC Vault
-        Vault vault = new Vault(
+        Vault newVault = new Vault(
             msg.sender,
             USDC,
             MAX_VAULT_CAPACITY,
             POINTS_NAME,
             POINTS_SYMBOL,
-            address(icyDyson),
+            ICYDyson(address(cyDyson)),
             address(treasury)
         );
 
         //5. Transfer ownership of the SyntheticToken to the new Vault
-        icyDyson.addVault(address(newVault));
+        cyDyson.addVault(address(newVault));
 
         //6. Approve USDC for trade on the Vault
         IERC20(UNDERLYING_STRATEGY_ASSET).approve(
@@ -64,7 +65,7 @@ contract Deploy is Script {
         );
 
         //7. Approve the Vault Points for trade on the Vault
-        IERC20(newVault).approve(address(newVault), MAX_VAULT_CAPACITY);
+        Vault(newVault).approve(address(newVault), MAX_VAULT_CAPACITY);
 
         //8. Deposit
         Vault(newVault).depositToVault(USDC, DYSON, 500 * 10 ** 6);
@@ -79,6 +80,7 @@ contract Deploy is Script {
 
         // log deployment data
         console2.log("Treasury: ", address(treasury));
-        console2.log("ICYDyson: ", address(icyDyson));
-        console2.log("Vault: ", address(vault));
+        console2.log("CyDyson: ", address(cyDyson));
+        console2.log("Vault: ", address(newVault));
+    }
 }
