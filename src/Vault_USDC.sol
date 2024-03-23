@@ -225,6 +225,12 @@ contract Vault is ERC4626, ReentrancyGuard {
         uint256 input //USDC is 8 decimals
     ) external nonReentrant returns (uint output) {
         uint spBefore = _update();
+
+        //check if this contract has the allowance to spend the input
+        if (IERC20(tokenIn).allowance(address(this), DYSON_USDC_POOL) < input) {
+            IERC20(tokenIn).approve(DYSON_USDC_POOL, input);
+        }
+
         tokenIn.safeTransferFrom(msg.sender, address(this), input);
 
         //find out if tokenIn is DYSN or USDC
