@@ -221,13 +221,13 @@ contract Vault is ERC4626, ReentrancyGuard {
      */
     constructor(
         address _owner,
-        ERC20 _asset, // DYSN or USDC
+        address _asset, // DYSN or USDC
         uint256 _maxVaultCapacity,
         string memory _name, //cyDYSN or cyUSDC
         string memory _symbol, //cyDYSN or cyUSDC
         ICYDyson _cyDysonAddress, //cyDyson
         address _treasury
-    ) ERC4626(_asset, _name, _symbol) {
+    ) ERC4626(ERC20(_asset), _name, _symbol) {
         CYDYSON_ADDRESS = _cyDysonAddress;
         MAX_VAULT_CAPACITY = _maxVaultCapacity;
         TREASURY_ADDRESS = _treasury;
