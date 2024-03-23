@@ -10,15 +10,12 @@ import "./interface/ICYDyson.sol";
 import "./interface/IPair.sol";
 import "./interface/IFarm.sol";
 import "./interface/IERC20.sol";
-import "./lib/TransferHelper.sol";
 
 /**
 @title Vault
 @notice This contract is used to store the yield strategies of the protocol
 */
 contract Vault is ERC4626, ReentrancyGuard {
-    using TransferHelper for address;
-
     //=============================================================================
     //STATE VARIABLES
     //=============================================================================
@@ -225,7 +222,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         uint input
     ) external nonReentrant returns (uint output) {
         uint spBefore = _update();
-        tokenIn.safeTransferFrom(msg.sender, address(this), input);
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), input);
 
         //find out if tokenIn is DYSN or USDC
         bool tokenIsDyson = tokenIn == DYSON ? true : false;
@@ -361,14 +358,14 @@ contract Vault is ERC4626, ReentrancyGuard {
         if (vaultUsers[msg.sender].debt < userShareOfPaydown) {
             vaultUsers[msg.sender].debt = 0;
             vaultUsers[msg.sender].credit += userShareOfPaydown;
-            USDC.safeTransferFrom(
+            IERC20(USDC).transferFrom(
                 address(this),
                 address(0),
                 userShareOfPaydown
             );
         } else {
             vaultUsers[msg.sender].debt -= userShareOfPaydown;
-            USDC.safeTransferFrom(
+            IERC20(USDC).transferFrom(
                 address(this),
                 address(0),
                 userShareOfPaydown
@@ -377,14 +374,14 @@ contract Vault is ERC4626, ReentrancyGuard {
 
         //increase the user's credit by the user's share of the credit reward
         vaultUsers[msg.sender].credit += userShareOfCreditReward;
-        USDC.safeTransferFrom(
+        IERC20(USDC).transferFrom(
             address(this),
             msg.sender,
             userShareOfCreditReward
         );
 
         //send the user's share of the protocol fee to the treasury
-        USDC.safeTransferFrom(
+        IERC20(USDC).transferFrom(
             address(this),
             TREASURY_ADDRESS,
             userShareOfProtocolFee
@@ -418,7 +415,7 @@ contract Vault is ERC4626, ReentrancyGuard {
                     MAX_ADMIN_FEE_RATIO;
                 uint poolIncome = dysonAdded - adminFee;
                 dysonPool += poolIncome;
-                DYSON.safeTransfer(owner, adminFee);
+                IERC20(DYSON).transfer(owner, adminFee);
                 emit DYSONReceived(adminFee, poolIncome);
             }
         }
