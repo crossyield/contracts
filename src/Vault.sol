@@ -11,6 +11,7 @@ import "./interface/IPair.sol";
 import "./interface/IFarm.sol";
 import "./interface/IERC20.sol";
 import "./lib/TransferHelper.sol";
+import "./lib/SqrtMath.sol";
 
 /**
 @title Vault
@@ -18,6 +19,7 @@ import "./lib/TransferHelper.sol";
 */
 contract Vault is ERC4626, ReentrancyGuard {
     using TransferHelper for address;
+    using SqrtMath for *;
 
     //=============================================================================
     //STATE VARIABLES
@@ -89,6 +91,7 @@ contract Vault is ERC4626, ReentrancyGuard {
     uint private constant MAX_ADMIN_FEE_RATIO = 1e18;
 
     uint constant MAX_FEE_RATIO = 2 ** 64;
+    uint private constant MAX_FEE_RATIO_SQRT = 2 ** 32;
 
     //=============================================================================
     //EVENTS
@@ -129,7 +132,8 @@ contract Vault is ERC4626, ReentrancyGuard {
         address indexed user,
         uint paydown,
         uint creditReward,
-        uint protocolFee
+        uint protocolFee,
+        uint spBefore
     );
 
     /**
@@ -334,24 +338,48 @@ contract Vault is ERC4626, ReentrancyGuard {
         }
 
         position.hasDepositedAsset = false;
-        (token0Amt, token1Amt) = IPair(DYSON_USDC_POOL).withdraw(
-            position.index,
-            address(this)
-        );
 
-        //token0 is Dyson, token1 is USDC
-        (address token0, address token1) = DYSON < USDC
-            ? (DYSON, USDC)
-            : (USDC, DYSON);
+        //will need to hardcode the below temporarily cause of time constraints
+        // (token0Amt, token1Amt) = IPair(DYSON_USDC_POOL).withdraw(
+        //     position.index,
+        //     address(this)
+        // );
 
-        //do a swap if amount for token1 is 0
-        if (token1 == USDC && token1Amt == 0) {
+        (uint reserve0, uint reserve1) = IPair(DYSON_USDC_POOL).getReserves();
+        (uint64 _feeRatio0, uint64 _feeRatio1) = IPair(DYSON_USDC_POOL)
+            .getFeeRatio();
+
+        if (
+            (((MAX_FEE_RATIO * (MAX_FEE_RATIO - uint(_feeRatio0))) /
+                (MAX_FEE_RATIO - uint(_feeRatio1))).sqrt() * token0Amt) /
+                reserve0 <
+            (MAX_FEE_RATIO_SQRT * token1Amt) / reserve1
+        ) {
+            token1Amt = 0;
             IPair(DYSON_USDC_POOL).swap0in(
                 address(this),
                 token0Amt,
                 (token0Amt * 90) / 100
             );
+            // uint64 feeRatioAdded = uint64(
+            //     (token0Amt * MAX_FEE_RATIO) / reserve0
+            // );
+            // _updateFeeRatio0(_feeRatio0, feeRatioAdded);
+            // emit Withdraw(address(this), true, index, token0Amt);
+        } else {
+            token0Amt = 0;
+            USDC.safeTransfer(address(this), token1Amt);
+            // uint64 feeRatioAdded = uint64(
+            //     (token1Amt * MAX_FEE_RATIO) / reserve1
+            // );
+            // _updateFeeRatio1(_feeRatio1, feeRatioAdded);
+            // emit Withdraw(address(this), false, index, token1Amt);
         }
+
+        //token0 is Dyson, token1 is USDC
+        (address token0, address token1) = DYSON < USDC
+            ? (DYSON, USDC)
+            : (USDC, DYSON);
 
         uint totalYield = token0Amt == 0 ? token1Amt : token0Amt;
 
