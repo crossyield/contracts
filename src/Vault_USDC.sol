@@ -204,8 +204,8 @@ contract Vault is ERC4626, ReentrancyGuard {
         address _owner,
         ERC20 _asset, // DYSN or USDC
         uint256 _maxVaultCapacity,
-        string memory _name,
-        string memory _symbol,
+        string memory _name, //cyDYSN or cyUSDC
+        string memory _symbol, //cyDYSN or cyUSDC
         ICYDyson _cyDysonAddress, //cyDyson
         address _treasury
     ) ERC4626(_asset, _name, _symbol) {
@@ -282,7 +282,10 @@ contract Vault is ERC4626, ReentrancyGuard {
 
         IERC20(address(this)).approve(address(this), MAX_VAULT_CAPACITY);
 
-        ICYDyson(CYDYSON_ADDRESS).mint(msg.sender, _amount);
+        ICYDyson(CYDYSON_ADDRESS).mint(
+            msg.sender,
+            _amount * 10 ** uint256(ERC20(address(this)).decimals())
+        );
 
         emit Borrowed(msg.sender, _amount);
     }
@@ -572,7 +575,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         return totalCredit;
     }
 
-     /**
+    /**
     @dev Returns the total value locked in the vault
     @return _vaultTVL The total value locked in the vault
     */
