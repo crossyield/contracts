@@ -385,18 +385,10 @@ contract Vault is ERC4626, ReentrancyGuard {
             // emit Withdraw(address(this), true, index, token0Amt);
 
             //provide a fixed return for now
-            USDC.safeTransferFrom(
-                msg.sender,
-                address(this),
-                100_000_000 * 1e12
-            );
+            USDC.safeTransferFrom(msg.sender, address(this), 100_000_000);
         } else {
             token0Amt = 0;
-            USDC.safeTransferFrom(
-                msg.sender,
-                address(this),
-                100_000_000 * 1e12
-            );
+            USDC.safeTransferFrom(msg.sender, address(this), 100_000_000);
             // uint64 feeRatioAdded = uint64(
             //     (token1Amt * MAX_FEE_RATIO) / reserve1
             // );
@@ -409,25 +401,26 @@ contract Vault is ERC4626, ReentrancyGuard {
         //     ? (DYSON, USDC)
         //     : (USDC, DYSON);
 
-        uint totalYield = 100_000_000 * 1e12; //hardcoded for now
+        uint totalYield = token0Amt == 0 ? token1Amt : token0Amt;
 
         //get the user's share of the vault
-        // uint256 userShareOfVault = (vaultUsers[msg.sender].points * BPS) /
-        //     vaultPoints;
+        uint256 userShareOfVault = (vaultUsers[msg.sender].points * BPS) /
+            vaultPoints;
 
-        // //get the user's share of the yield
-        // uint256 userShareOfYield = (userShareOfVault * totalYield) / BPS;
+        //get the user's share of the yield
+        uint256 userShareOfYield = (userShareOfVault * totalYield) / BPS;
 
-        //get the user's share of the paydown, no need for BPS
-        uint256 userShareOfPaydown = (totalYield * DEBT_PAYDOWN_RATIO) / BPS;
+        //get the user's share of the paydown
+        uint256 userShareOfPaydown = (userShareOfYield * DEBT_PAYDOWN_RATIO) /
+            BPS;
 
         //get the user's share of the credit reward
-        uint256 userShareOfCreditReward = (totalYield * CREDIT_REWARD_RATIO) /
-            BPS;
+        uint256 userShareOfCreditReward = (userShareOfYield *
+            CREDIT_REWARD_RATIO) / BPS;
 
         //get the user's share of the protocol fee
-        uint256 userShareOfProtocolFee = (totalYield * PROTOCOL_REWARD_RATIO) /
-            BPS;
+        uint256 userShareOfProtocolFee = (userShareOfYield *
+            PROTOCOL_REWARD_RATIO) / BPS;
 
         //decrease the user's debt.
         //if the user's debt is less than the user's share of the paydown, then the user's debt will be set to zero.
