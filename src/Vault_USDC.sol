@@ -219,7 +219,7 @@ contract Vault is ERC4626, ReentrancyGuard {
     function depositToVault(
         address tokenIn, //DYSN
         address tokenOut, //USDC
-        uint input
+        uint8 input //USDC is 8 decimals
     ) external nonReentrant returns (uint output) {
         uint spBefore = _update();
         IERC20(tokenIn).transferFrom(msg.sender, address(this), input);
