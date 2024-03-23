@@ -40,7 +40,7 @@ contract CyDyson is ERC20, ERC20Permit, ERC20Burnable, AccessControl {
     //==============================================================================
     //CONSTRUCTOR
     //==============================================================================
-    constructor() ERC20("cyDYSON", "CYDYSON") ERC20Permit("CrossYield") {
+    constructor() ERC20("cyDYSON", "CY_DYSON") ERC20Permit("CrossYield") {
         _grantRole(ADMIN_ROLE, msg.sender);
     }
 
