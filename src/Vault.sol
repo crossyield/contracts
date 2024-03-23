@@ -189,6 +189,12 @@ contract Vault is ERC4626, ReentrancyGuard {
     */
     error InsufficientSyntheticAssets(uint _amount, uint _balance);
 
+    /**
+    @dev Error when the user has not deposited assets to Dyson Finance
+    @param _user The address of the user
+    */
+    error NoDepositedAssets(address _user);
+
     //=============================================================================
     //CONSTRUCTOR
     //=============================================================================
@@ -305,14 +311,19 @@ contract Vault is ERC4626, ReentrancyGuard {
     @dev if yield in dy
     */
     function redistributeYield(
-        uint index, // 1
-        address to // address of this contract
+        uint index // 1
     ) public returns (uint token0Amt, uint token1Amt) {
-        Position storage position = positions[DYSON_USDC_POOL][address(this)][
+        uint spBefore = _update();
+
+        Position storage position = positions[DYSON_USDC_POOL][msg.sender][
             index
         ];
 
-        if (vaultUsers[msg.sender].points == 0 || !position.hasDepositedAsset) {
+        if (!(position.hasDepositedAsset)) {
+            revert NoDepositedAssets(msg.sender);
+        }
+
+        if (vaultUsers[msg.sender].points == 0) {
             revert NotADepositor(msg.sender);
         }
 
@@ -325,7 +336,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         position.hasDepositedAsset = false;
         (token0Amt, token1Amt) = IPair(DYSON_USDC_POOL).withdraw(
             position.index,
-            to
+            address(this)
         );
 
         //token0 is Dyson, token1 is USDC
@@ -398,12 +409,16 @@ contract Vault is ERC4626, ReentrancyGuard {
             userShareOfProtocolFee
         );
 
+        //update the user's last redistributed time
+        vaultUsers[msg.sender].lastRedistributed = block.timestamp;
+
         //emit the YieldRedistributed event
         emit YieldRedistributed(
             msg.sender,
             userShareOfPaydown,
             userShareOfCreditReward,
-            userShareOfProtocolFee
+            userShareOfProtocolFee,
+            spBefore
         );
     }
     //=============================================================================
