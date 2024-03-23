@@ -65,6 +65,9 @@ contract Vault is ERC4626, ReentrancyGuard {
     /// @dev Address to store the DYSON token on Sepolia
     address public constant DYSON = 0xeDC2B3Bebbb4351a391363578c4248D672Ba7F9B;
 
+    /// @dev Address to store the USDC token on Sepolia
+    address public constant USDC = 0xFA0bd2B4d6D629AdF683e4DCA310c562bCD98E4E;
+
     struct Position {
         uint index;
         uint spAmount;
@@ -215,12 +218,12 @@ contract Vault is ERC4626, ReentrancyGuard {
     //=============================================================================
     /// @dev integration from dyson finance
     function depositToVault(
-        address tokenIn,
-        address tokenOut,
-        uint index,
+        address tokenIn, //DYSN
+        address tokenOut, //USDC
+        uint index, //1
         uint input,
-        uint minOutput,
-        uint time
+        uint minOutput, //fetch this from another dyson contract
+        uint time // 1 days
     ) external nonReentrant returns (uint output) {
         uint spBefore = _update();
         tokenIn.safeTransferFrom(msg.sender, address(this), input);
@@ -262,6 +265,125 @@ contract Vault is ERC4626, ReentrancyGuard {
         emit Borrowed(msg.sender, _amount);
     }
 
+    /**
+    @dev Mechanism to redistribute yield
+    @dev this will be called automatically in the background when the user connects to the vault
+    @notice the yield will be redistributed based on some conditions:
+    - Yield will be collected by the vault and redistributed back to users based on their points (representing their share of the vault)
+    - 50% of the yield will be used to pay down user's debt (if no debt, then it will be used to increase user's credit)
+    - 40% of the yield will be used to increase user's credit
+    - 10% of the yield will be used to be sent to the treasury
+    @dev formula to calculate the yield by the user
+        - first, calculate the user's share of the vault (user's points / total points)
+        - then, calculate the user's share of the yield (user's share of the vault * total yield)
+        - then, calculate the user's share of the paydown (user's share of the yield * 50%)
+        - then, calculate the user's share of the credit reward (user's share of the yield * 40%)
+        - then, calculate the user's share of the protocol fee (user's share of the yield * 10%)
+
+    @dev if yield in dy
+    */
+    function redistributeYield(
+        uint index, // 1
+        address to // address of this contract
+    ) public returns (uint token0Amt, uint token1Amt) {
+        Position storage position = positions[DYSON_USDC_POOL][msg.sender][
+            index
+        ];
+
+        if (vaultUsers[msg.sender].points == 0 || !position.hasDepositedAsset) {
+            revert NotADepositor(msg.sender);
+        }
+
+        if (
+            block.timestamp - vaultUsers[msg.sender].lastRedistributed < 86400
+        ) {
+            revert YieldRedistributedRecently();
+        }
+
+        position.hasDepositedAsset = false;
+        (token0Amt, token1Amt) = IPair(DYSON_USDC_POOL).withdraw(
+            position.index,
+            to
+        );
+
+        //token0 is Dyson, token1 is USDC
+        (address token0, address token1) = DYSON < USDC
+            ? (DYSON, USDC)
+            : (USDC, DYSON);
+
+        //do a swap if amount for token1 is 0
+        if (token1 == USDC && token1Amt == 0) {
+            IPair(DYSON_USDC_POOL).swap0in(
+                address(this),
+                token0Amt,
+                (token0Amt * 90) / 100
+            );
+        }
+
+        uint totalYield = token0Amt == 0 ? token1Amt : token0Amt;
+
+        //get the user's share of the vault
+        uint256 userShareOfVault = (vaultUsers[msg.sender].points * BPS) /
+            vaultPoints;
+
+        //get the user's share of the yield
+        uint256 userShareOfYield = (userShareOfVault * totalYield) / BPS;
+
+        //get the user's share of the paydown
+        uint256 userShareOfPaydown = (userShareOfYield * DEBT_PAYDOWN_RATIO) /
+            BPS;
+
+        //get the user's share of the credit reward
+        uint256 userShareOfCreditReward = (userShareOfYield *
+            CREDIT_REWARD_RATIO) / BPS;
+
+        //get the user's share of the protocol fee
+        uint256 userShareOfProtocolFee = (userShareOfYield *
+            PROTOCOL_REWARD_RATIO) / BPS;
+
+        //decrease the user's debt.
+        //if the user's debt is less than the user's share of the paydown, then the user's debt will be set to zero.
+        //if there is no debt, then the user's credit will be increased by the user's share of the paydown
+        if (vaultUsers[msg.sender].debt < userShareOfPaydown) {
+            vaultUsers[msg.sender].debt = 0;
+            vaultUsers[msg.sender].credit += userShareOfPaydown;
+            USDC.safeTransferFrom(
+                address(this),
+                address(0),
+                userShareOfPaydown
+            );
+        } else {
+            vaultUsers[msg.sender].debt -= userShareOfPaydown;
+            USDC.safeTransferFrom(
+                address(this),
+                address(0),
+                userShareOfPaydown
+            );
+        }
+
+        //increase the user's credit by the user's share of the credit reward
+        vaultUsers[msg.sender].credit += userShareOfCreditReward;
+        USDC.safeTransferFrom(
+            address(this),
+            msg.sender,
+            userShareOfCreditReward
+        );
+
+        //send the user's share of the protocol fee to the treasury
+        USDC.safeTransferFrom(
+            address(this),
+            TREASURY_ADDRESS,
+            userShareOfProtocolFee
+        );
+
+        //emit the YieldRedistributed event
+        emit YieldRedistributed(
+            msg.sender,
+            userShareOfPaydown,
+            userShareOfCreditReward,
+            userShareOfProtocolFee
+        );
+    }
     //=============================================================================
     //INTERNAL FUNCTIONS
     //=============================================================================
