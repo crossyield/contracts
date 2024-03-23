@@ -10,12 +10,15 @@ import "./interface/ICYDyson.sol";
 import "./interface/IPair.sol";
 import "./interface/IFarm.sol";
 import "./interface/IERC20.sol";
+import "./lib/TransferHelper.sol";
 
 /**
 @title Vault
 @notice This contract is used to store the yield strategies of the protocol
 */
 contract Vault is ERC4626, ReentrancyGuard {
+    using TransferHelper for address;
+
     //=============================================================================
     //STATE VARIABLES
     //=============================================================================
@@ -222,7 +225,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         uint256 input //USDC is 8 decimals
     ) external nonReentrant returns (uint output) {
         uint spBefore = _update();
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), input);
+        tokenIn.safeTransferFrom(msg.sender, address(this), input);
 
         //find out if tokenIn is DYSN or USDC
         bool tokenIsDyson = tokenIn == DYSON ? true : false;
@@ -358,14 +361,14 @@ contract Vault is ERC4626, ReentrancyGuard {
         if (vaultUsers[msg.sender].debt < userShareOfPaydown) {
             vaultUsers[msg.sender].debt = 0;
             vaultUsers[msg.sender].credit += userShareOfPaydown;
-            IERC20(USDC).transferFrom(
+            USDC.safeTransferFrom(
                 address(this),
                 address(0),
                 userShareOfPaydown
             );
         } else {
             vaultUsers[msg.sender].debt -= userShareOfPaydown;
-            IERC20(USDC).transferFrom(
+            USDC.safeTransferFrom(
                 address(this),
                 address(0),
                 userShareOfPaydown
@@ -374,14 +377,14 @@ contract Vault is ERC4626, ReentrancyGuard {
 
         //increase the user's credit by the user's share of the credit reward
         vaultUsers[msg.sender].credit += userShareOfCreditReward;
-        IERC20(USDC).transferFrom(
+        USDC.safeTransferFrom(
             address(this),
             msg.sender,
             userShareOfCreditReward
         );
 
         //send the user's share of the protocol fee to the treasury
-        IERC20(USDC).transferFrom(
+        USDC.safeTransferFrom(
             address(this),
             TREASURY_ADDRESS,
             userShareOfProtocolFee
