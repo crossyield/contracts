@@ -210,6 +210,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         address _treasury
     ) ERC4626(_asset, _name, _symbol) {
         CYDYSON_ADDRESS = _cyDysonAddress;
+        ICYDyson(_cyDysonAddress).addVault(address(this));
         MAX_VAULT_CAPACITY = _maxVaultCapacity;
         TREASURY_ADDRESS = _treasury;
         owner = _owner;
