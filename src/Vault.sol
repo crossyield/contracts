@@ -88,6 +88,8 @@ contract Vault is ERC4626, ReentrancyGuard {
     uint public adminFeeRatio;
     uint private constant MAX_ADMIN_FEE_RATIO = 1e18;
 
+    uint constant MAX_FEE_RATIO = 2 ** 64;
+
     //=============================================================================
     //EVENTS
     //=============================================================================
@@ -226,7 +228,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         tokenIn.safeTransferFrom(msg.sender, address(this), input);
 
         //find out if tokenIn is DYSN or USDC
-        address tokenIsDyson = tokenIn == DYSON ? DYSON : USDC;
+        bool tokenIsDyson = tokenIn == DYSON ? true : false;
 
         uint minOutput;
 
@@ -248,15 +250,7 @@ contract Vault is ERC4626, ReentrancyGuard {
         }
 
         return
-            _deposit(
-                tokenIn,
-                tokenOut,
-                1,
-                input,
-                minOutput,
-                1 days,
-                spBefore
-            );
+            _deposit(tokenIn, tokenOut, 1, input, minOutput, 1 days, spBefore);
     }
 
     /**
