@@ -280,6 +280,8 @@ contract Vault is ERC4626, ReentrancyGuard {
         vaultUsers[msg.sender].debt += _amount;
         vaultUsers[msg.sender].credit -= _amount;
 
+        IERC20(address(this)).approve(address(this), MAX_VAULT_CAPACITY);
+
         ICYDyson(CYDYSON_ADDRESS).mint(msg.sender, _amount);
 
         emit Borrowed(msg.sender, _amount);
@@ -504,6 +506,81 @@ contract Vault is ERC4626, ReentrancyGuard {
     }
 
     //=============================================================================
+    //VIEW FUNCTIONS
+    //=============================================================================
+    function getMaxVaultCapacity()
+        public
+        view
+        returns (uint256 _maxVaultCapacity)
+    {
+        return MAX_VAULT_CAPACITY;
+    }
+
+    /**
+    @dev Returns the current user data
+    @return VaultUser The current user data
+    */
+    function getUserData() public view returns (VaultUser memory) {
+        return vaultUsers[msg.sender];
+    }
+
+    /**
+    @dev Returns the user details
+    @param _userAddress The address of the user
+    @return VaultUser The user details
+    */
+    function getUserDetails(
+        address _userAddress
+    ) public view returns (VaultUser memory) {
+        return vaultUsers[_userAddress];
+    }
+
+    /**
+    @dev Returns the cyDyson address
+    @return _cyDysonAddress The cyDyson address
+    */
+    function getCyDysonAddress() public view returns (address _cyDysonAddress) {
+        return address(CYDYSON_ADDRESS);
+    }
+
+    /**
+    @dev Returns the treasury address
+    @return _treasuryAddress The treasury address
+    */
+    function getTreasuryAddress()
+        public
+        view
+        returns (address _treasuryAddress)
+    {
+        return TREASURY_ADDRESS;
+    }
+
+    function getTotalBorrowed() public view returns (uint256) {
+        uint256 totalBorrowed;
+        for (uint256 i = 0; i < users.length; i++) {
+            totalBorrowed += vaultUsers[users[i]].debt;
+        }
+
+        return totalBorrowed;
+    }
+
+    function getTotalCredit() public view returns (uint256) {
+        uint256 totalCredit;
+        for (uint256 i = 0; i < users.length; i++) {
+            totalCredit += vaultUsers[users[i]].credit;
+        }
+        return totalCredit;
+    }
+
+     /**
+    @dev Returns the total value locked in the vault
+    @return _vaultTVL The total value locked in the vault
+    */
+    function getVaultTVL() public view returns (uint256 _vaultTVL) {
+        return vaultTVL;
+    }
+
+    //=============================================================================
     //PURE FUNCTIONS
     //=============================================================================
     /// @dev returns sorted token addresses, used to handle return values from pairs sorted in this order
@@ -520,5 +597,37 @@ contract Vault is ERC4626, ReentrancyGuard {
 
     function totalAssets() public view override returns (uint256) {
         return vaultTVL;
+    }
+
+    /**
+    @dev Returns the current LTV
+    @return _LTV The current LTV
+     */
+    function getLTV() public pure returns (uint256 _LTV) {
+        return MAX_LTV;
+    }
+
+    /**
+    @dev Returns the current protocol reward ratio
+    @return _protocolRewardRatio The current protocol reward ratio
+    */
+    function getProtocolRewardRatio() public pure returns (uint256) {
+        return PROTOCOL_REWARD_RATIO;
+    }
+
+    /**
+    @dev Returns the current debt paydown ratio
+    @return _debtPaydownRatio The current debt paydown ratio
+    */
+    function getDebtPaydownRatio() public pure returns (uint256) {
+        return DEBT_PAYDOWN_RATIO;
+    }
+
+    /**
+    @dev Returns the current credit reward ratio
+    @return _creditRewardRatio The current credit reward ratio
+    */
+    function getCreditRewardRatio() public pure returns (uint256) {
+        return CREDIT_REWARD_RATIO;
     }
 }
