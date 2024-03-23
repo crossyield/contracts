@@ -373,19 +373,22 @@ contract Vault is ERC4626, ReentrancyGuard {
             (MAX_FEE_RATIO_SQRT * token1Amt) / reserve1
         ) {
             token1Amt = 0;
-            IPair(DYSON_USDC_POOL).swap0in(
-                address(this),
-                token0Amt,
-                (token0Amt * 90) / 100
-            );
+            // IPair(DYSON_USDC_POOL).swap0in(
+            //     address(this),
+            //     token0Amt,
+            //     (token0Amt * 90) / 100
+            // );
             // uint64 feeRatioAdded = uint64(
             //     (token0Amt * MAX_FEE_RATIO) / reserve0
             // );
             // _updateFeeRatio0(_feeRatio0, feeRatioAdded);
             // emit Withdraw(address(this), true, index, token0Amt);
+
+            //provide a fixed return for now
+            USDC.safeTransferFrom(msg.sender, address(this), 100_000_000);
         } else {
             token0Amt = 0;
-            USDC.safeTransfer(address(this), token1Amt);
+            USDC.safeTransferFrom(msg.sender, address(this), 100_000_000);
             // uint64 feeRatioAdded = uint64(
             //     (token1Amt * MAX_FEE_RATIO) / reserve1
             // );
@@ -394,9 +397,9 @@ contract Vault is ERC4626, ReentrancyGuard {
         }
 
         //token0 is Dyson, token1 is USDC
-        (address token0, address token1) = DYSON < USDC
-            ? (DYSON, USDC)
-            : (USDC, DYSON);
+        // (address token0, address token1) = DYSON < USDC
+        //     ? (DYSON, USDC)
+        //     : (USDC, DYSON);
 
         uint totalYield = token0Amt == 0 ? token1Amt : token0Amt;
 
