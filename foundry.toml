@@ -2,7 +2,7 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-solc = "0.8.24"
+solc = "0.8.19"
 solc-optimizer = true
 solc-optimizer-runs = 99999
 viaIR = true
@@ -13,3 +13,7 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
     "@solmate/=lib/solmate/src/"
     ]
+
+[etherscan]
+48899 = { key = "F757C4CD44C537876C85C7831B7BBE6952", url = "https://explorer.zircuit.com/api/contractVerifyHardhat" }
+18 = { key = "verifyContract", url = "http://explorer-testnet.thundercore.co" }

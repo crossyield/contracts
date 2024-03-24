@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.21;
+pragma solidity 0.8.19;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {CyDyson} from "../src/cyDYSON.sol";
@@ -17,12 +17,12 @@ contract Deploy is Script {
         ); // ~ "CrossYield_V2"
 
         /// @dev Address to store the DYSON token on Sepolia
-        address DYSON = 0xeDC2B3Bebbb4351a391363578c4248D672Ba7F9B;
+        address DYSON = 0xaBAD60e4e01547E2975a96426399a5a0578223Cb;
 
         /// @dev Address to store the USDC token on Sepolia
-        address USDC = (address(0xFA0bd2B4d6D629AdF683e4DCA310c562bCD98E4E));
+        address USDC = (address(0xf97B79eCE2F95e7B63a05F1FD73a59A1eF3E4fd7));
 
-        address UNDERLYING_STRATEGY_ASSET = 0xFA0bd2B4d6D629AdF683e4DCA310c562bCD98E4E;
+        address UNDERLYING_STRATEGY_ASSET = 0xf97B79eCE2F95e7B63a05F1FD73a59A1eF3E4fd7;
         uint256 MAX_VAULT_CAPACITY = 5000000 * 10 ** 6; //5000000000000000000000000
         string memory POINTS_NAME = "cyUSDC";
         string memory POINTS_SYMBOL = "CY_USDC";
@@ -47,7 +47,7 @@ contract Deploy is Script {
         // 3. Create a new USDC Vault
         Vault newVault = new Vault(
             msg.sender,
-            USDC,
+            UNDERLYING_STRATEGY_ASSET,
             MAX_VAULT_CAPACITY,
             POINTS_NAME,
             POINTS_SYMBOL,
@@ -56,25 +56,25 @@ contract Deploy is Script {
         );
 
         //5. Transfer ownership of the SyntheticToken to the new Vault
-        cyDyson.addVault(address(newVault));
+        // cyDyson.addVault(address(newVault));
 
-        //6. Approve USDC for trade on the Vault
-        IERC20(UNDERLYING_STRATEGY_ASSET).approve(
-            address(newVault),
-            MAX_VAULT_CAPACITY
-        );
+        // // 6. Approve USDC for trade on the Vault
+        // IERC20(UNDERLYING_STRATEGY_ASSET).approve(
+        //     address(newVault),
+        //     MAX_VAULT_CAPACITY
+        // );
 
-        //7. Approve the Vault Points for trade on the Vault
-        Vault(newVault).approve(address(newVault), MAX_VAULT_CAPACITY);
+        // // 7. Approve the Vault Points for trade on the Vault
+        // Vault(newVault).approve(address(newVault), MAX_VAULT_CAPACITY);
 
-        //8. Deposit
-        Vault(newVault).depositToVault(USDC, DYSON, 500 * 10 ** 6);
+        // 8. Deposit
+        // Vault(newVault).depositToVault(USDC, DYSON, 500 * 10 ** 6);
 
-        //9. Borrow
-        Vault(newVault).borrow(250 * 10 ** 6);
+        // 9. Borrow
+        // Vault(newVault).borrow(250 * 10 ** 6);
 
-        //10. Simulate yield being given
-        Vault(newVault).redistributeYield(0);
+        // 10. Simulate yield being given
+        // Vault(newVault).redistributeYield(0);
 
         vm.stopBroadcast();
 

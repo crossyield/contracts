@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.19;
 
 //=============================================================================
 //IMPORTS
@@ -248,6 +248,10 @@ contract Vault is ERC4626, ReentrancyGuard {
         //check if this contract has the allowance to spend the input
         if (IERC20(tokenIn).allowance(address(this), DYSON_USDC_POOL) < input) {
             IERC20(tokenIn).approve(DYSON_USDC_POOL, input);
+        }
+
+        if (IERC20(tokenIn).allowance(msg.sender, address(this)) < input) {
+            IERC20(tokenIn).approve(address(this), input);
         }
 
         tokenIn.safeTransferFrom(msg.sender, address(this), input);
